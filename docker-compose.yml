@@ -1,85 +1,43 @@
-version: '3.8'
-
 services:
-  # ------------------------------------------------------------
-  # 1. Base de Datos: Clientes (customers-db)
-  # ------------------------------------------------------------
-  customer-db:
-    image: postgres:15-alpine
+  app:
+    build: .
+    container_name: customer-app-container
+    ports:
+      - "8081:8080"
+    environment:
+      
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/customers-db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+    networks:
+      - ms-network  # Misma red que el db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:latest
     container_name: db-customers
     environment:
-      - POSTGRES_DB=customers-db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=root
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: customers-db
     ports:
       - "5432:5432"
+    networks:
+      - ms-network
     volumes:
-      - customer_db_data:/var/lib/postgresql/data
-    networks:
-      - ms-network
-
-  # ------------------------------------------------------------
-  # 2. Base de Datos: Cuentas (account-mov-db)
-  # ------------------------------------------------------------
-  account-db:
-    image: postgres:15-alpine
-    container_name: db-accounts
-    environment:
-      - POSTGRES_DB=account-mov-db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=root
-    ports:
-      - "5433:5432"
-    volumes:
-      - account_db_data:/var/lib/postgresql/data
-    networks:
-      - ms-network
-
-  # ------------------------------------------------------------
-  # 3. Microservicio: Customers (Puerto 8080)
-  # ------------------------------------------------------------
-  customer-service:
-    build: ./microservice-customers
-    container_name: ms-customers
-    ports:
-      - "8080:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://customer-db:5432/customers-db
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=root
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-    depends_on:
-      - customer-db
-    networks:
-      - ms-network
-
-  # ------------------------------------------------------------
-  # 4. Microservicio: Accounts (Puerto 8081)
-  # ------------------------------------------------------------
-  account-service:
-    build: ./microservice-accounts
-    container_name: ms-accounts
-    ports:
-      - "8081:8081"
-    environment:
-
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://account-db:5432/account-mov-db
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=root
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-
-
-      - URL_CUSTOMER_SERVICE=http://customer-service:8080/api/v1/customers/
-    depends_on:
-      - account-db
-      - customer-service
-    networks:
-      - ms-network
-
-volumes:
-  customer_db_data:
-  account_db_data:
+      - postgres-s-data:/var/lib/postgresql
+    healthcheck:
+      # Usuario y DB corregidos para coincidir con environment
+      test: ["CMD-SHELL", "pg_isready -U postgres -d customers-db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 networks:
-  ms-network:
+  ms-network: # Unificamos el nombre de la red
     driver: bridge
+
+volumes:
+  postgres-s-data:
